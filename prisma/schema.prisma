@@ -1,0 +1,160 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role{
+  ADMIN
+  OWNER
+CHEF
+PAYMENTAGENT
+
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum ModifierType {
+  SINGLE
+  MULTIPLE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role Role @default(OWNER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  restaurant Restaurant?
+  employerRestaurant Restaurant? @relation("RestaurantEmployees", fields: [employerRestaurantId], references: [id])
+  employerRestaurantId String?
+}
+model Restaurant {
+  id        String   @id @default(cuid())
+  name      String
+  logo      String?
+  description String?
+  memeber     User     @relation(fields: [memeberId], references: [id])
+  memeberId   String @unique
+    createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  products Product[]
+  categories Category[]
+  orders Order[]
+  employees User[] @relation("RestaurantEmployees")
+  subscriptionPlan Subscription? @relation(fields: [subscriptionPlanId], references: [id])
+  subscriptionPlanId String?
+  subscriptionStartAt DateTime?
+  subscriptionEndAt DateTime?
+
+}
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  price     Float
+  isAvailable Boolean @default(true)
+  images    String[] @default([])
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  restaurantId String
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orderItems OrderItem[]
+  modifierGroups ModifierGroup[]
+}
+
+// A restaurant-scoped grouping used to organize the menu (e.g. Appetizers, Mains, Drinks).
+model Category {
+  id           String   @id @default(cuid())
+  name         String
+  position     Int      @default(0)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurantId String
+  products     Product[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// A group of choices on a product: variants (e.g. Size — pick one) or additions (e.g. Extras — pick many).
+model ModifierGroup {
+  id        String   @id @default(cuid())
+  name      String
+  type      ModifierType @default(SINGLE)
+  required  Boolean  @default(false)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  options   ModifierOption[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// A single choice within a group. price 0 = free, price > 0 = added to the product's price.
+model ModifierOption {
+  id              String   @id @default(cuid())
+  name            String
+  price           Float    @default(0)
+  group           ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  modifierGroupId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+model Order {
+  id        String   @id @default(cuid())
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  restaurantId String
+  items     OrderItem[]
+  total     Float
+  status    OrderStatus @default(PENDING)
+  isPrepared Boolean @default(false)
+  isPaid    Boolean @default(false)
+  tableName String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+  price     Float
+  modifiers OrderItemModifier[]
+}
+
+// Snapshot of a selected modifier option's name/price at order time, independent of later menu edits.
+model OrderItemModifier {
+  id          String   @id @default(cuid())
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  orderItemId String
+  name        String
+  price       Float
+}
+
+model Subscription{
+  id        String   @id @default(cuid())
+name String
+days Int
+price Float @default(0)
+isTrial Boolean @default(false)
+restaurant Restaurant[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
