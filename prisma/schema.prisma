@@ -123,7 +123,11 @@ model Order {
   status    OrderStatus @default(PENDING)
   isPrepared Boolean @default(false)
   isPaid    Boolean @default(false)
-  tableName String
+  isDelivery Boolean @default(false)
+  tableName String?
+  customerName String?
+  customerPhone String?
+  customerAddress String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

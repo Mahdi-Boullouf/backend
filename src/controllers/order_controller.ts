@@ -7,15 +7,24 @@ import { emitNewOrder, emitOrderUpdated } from "../socket";
 
 const orderItemInclude = { items: { include: { product: true, modifiers: true } } } as const;
 
-export const createOrderSchema = z.object({
-    restaurantId: z.string(),
-    tableName: z.string().min(1),
-    items: z.array(z.object({
-        productId: z.string(),
-        quantity: z.number().int().positive(),
-        modifierOptionIds: z.array(z.string()).default([]),
-    })).min(1),
-});
+export const createOrderSchema = z
+    .object({
+        restaurantId: z.string(),
+        isDelivery: z.boolean().default(false),
+        tableName: z.string().min(1).optional(),
+        customerName: z.string().min(1).optional(),
+        customerPhone: z.string().min(1).optional(),
+        customerAddress: z.string().min(1).optional(),
+        items: z.array(z.object({
+            productId: z.string(),
+            quantity: z.number().int().positive(),
+            modifierOptionIds: z.array(z.string()).default([]),
+        })).min(1),
+    })
+    // Delivery orders need customer contact + address; dine-in orders need a table.
+    .refine((d) => (d.isDelivery ? !!(d.customerName && d.customerPhone && d.customerAddress) : !!d.tableName), {
+        message: "Delivery orders require name, phone and address; dine-in orders require a table",
+    });
 
 export const updateOrderStatusSchema = z.object({
     status: z.enum(["PENDING", "COMPLETED", "CANCELLED"]),
@@ -35,7 +44,15 @@ interface OrderItemInput {
 // Public: place an order for a restaurant's table. No account required.
 export const createOrder = async (request: Request, response: Response, next: NextFunction) => {
     try {
-        const { restaurantId, tableName, items } = request.body as { restaurantId: string; tableName: string; items: OrderItemInput[] };
+        const { restaurantId, isDelivery, tableName, customerName, customerPhone, customerAddress, items } = request.body as {
+            restaurantId: string;
+            isDelivery?: boolean;
+            tableName?: string;
+            customerName?: string;
+            customerPhone?: string;
+            customerAddress?: string;
+            items: OrderItemInput[];
+        };
 
         const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
         if (!restaurant) {
@@ -97,7 +114,11 @@ export const createOrder = async (request: Request, response: Response, next: Ne
         const order = await prisma.order.create({
             data: {
                 restaurantId,
-                tableName,
+                isDelivery: !!isDelivery,
+                tableName: isDelivery ? null : tableName,
+                customerName: isDelivery ? customerName : null,
+                customerPhone: isDelivery ? customerPhone : null,
+                customerAddress: isDelivery ? customerAddress : null,
                 total,
                 items: { create: orderItemsData },
             },
